@@ -27,6 +27,7 @@ from datetime import datetime
 from typing import Optional
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
+import streamlit as st
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -308,14 +309,13 @@ class AMem:
         return response.choices[0].message.content
 
     def show_all(self):
-        """Print every note in memory."""
+        """Return a string representation of every note in memory."""
         if not self.memory:
-            print("[A-MEM] Memory is empty.")
-            return
-        print(f"[A-MEM] {len(self.memory)} notes in memory:\n")
+            return "[A-MEM] Memory is empty."
+        output = f"[A-MEM] {len(self.memory)} notes in memory:\n\n"
         for note in self.memory.values():
-            print(note.summary())
-            print()
+            output += note.summary() + "\n\n"
+        return output
 
     def dump_json(self) -> str:
         """Return all memory notes as a JSON string."""
@@ -405,7 +405,7 @@ class AMem:
     # ── Step 3 ────────────────────────────────────────────────────────────────
 
     def _evolve_neighbours(self, note: MemoryNote, neighbours: list[MemoryNote]):
-        """
+        r"""
         Equation (7): m*_j ← LLM(m_n ∥ M^n_near \ m_j ∥ m_j ∥ P_s3)
         Evolved notes replace originals in self.memory.
         """
@@ -448,52 +448,56 @@ class AMem:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  DEMO  –  run `python amem.py` to try it
+#  STREAMLIT APP
 # ══════════════════════════════════════════════════════════════════════════════
 
-if __name__ == "__main__":
-    import os
+st.title("A-MEM: Agentic Memory System")
 
-    API_KEY = os.getenv("OPENAI_API_KEY") or input("Enter your OpenAI API key: ").strip()
+# API Key input
+api_key = st.text_input("Enter your OpenAI API key:", type="password")
 
-    mem = AMem(openai_api_key=API_KEY, top_k=5, verbose=True)
-
-    # ── ingest some memories ──────────────────────────────────────────────────
-    memories = [
-        "I love hiking in the mountains every weekend. My favourite trail is near Lake Tahoe.",
-        "I went on a 10-mile trail run last Saturday and felt exhausted but accomplished.",
-        "Started learning Python two months ago. I'm building a personal finance tracker.",
-        "I enjoy cooking Italian food, especially homemade pasta and risotto.",
-        "I read 'Deep Work' by Cal Newport and it changed how I structure my mornings.",
-        "I recently upgraded my running shoes to the Brooks Ghost 16 – great for long runs.",
-    ]
-
-    print("=" * 60)
-    print("ADDING MEMORIES")
-    print("=" * 60)
-    for m in memories:
-        mem.add(m)
-
-    # ── show all stored notes ─────────────────────────────────────────────────
-    print("=" * 60)
-    print("ALL STORED NOTES")
-    print("=" * 60)
-    mem.show_all()
-
-    # ── retrieve ──────────────────────────────────────────────────────────────
-    query = "outdoor sports and fitness"
-    print("=" * 60)
-    print(f"RETRIEVING for: '{query}'")
-    print("=" * 60)
-    results = mem.retrieve(query, top_k=3)
-    for r in results:
-        print(r.summary())
-        print()
-
-    # ── agent chat ────────────────────────────────────────────────────────────
-    question = "What outdoor activities does the user enjoy?"
-    print("=" * 60)
-    print(f"AGENT CHAT: {question}")
-    print("=" * 60)
-    answer = mem.chat(question)
-    print(answer)
+if api_key:
+    try:
+        mem = AMem(openai_api_key=api_key, top_k=5, verbose=True)
+        
+        st.success("API Key accepted! Memory system initialized.")
+        
+        # Demo memories
+        memories = [
+            "I love hiking in the mountains every weekend. My favourite trail is near Lake Tahoe.",
+            "I went on a 10-mile trail run last Saturday and felt exhausted but accomplished.",
+            "Started learning Python two months ago. I'm building a personal finance tracker.",
+            "I enjoy cooking Italian food, especially homemade pasta and risotto.",
+            "I read 'Deep Work' by Cal Newport and it changed how I structure my mornings.",
+            "I recently upgraded my running shoes to the Brooks Ghost 16 – great for long runs.",
+        ]
+        
+        if st.button("Add Demo Memories"):
+            with st.spinner("Adding memories..."):
+                for m in memories:
+                    mem.add(m)
+            st.success("Demo memories added!")
+        
+        # Show all notes
+        if st.button("Show All Stored Notes"):
+            notes = mem.show_all()
+            st.text_area("All Stored Notes", notes, height=300)
+        
+        # Retrieval
+        query = st.text_input("Enter a query to retrieve memories:")
+        if query and st.button("Retrieve"):
+            results = mem.retrieve(query, top_k=3)
+            for r in results:
+                st.write(r.summary())
+                st.write("---")
+        
+        # Chat
+        question = st.text_input("Ask a question about the memories:")
+        if question and st.button("Chat"):
+            answer = mem.chat(question)
+            st.write("Answer:", answer)
+            
+    except Exception as e:
+        st.error(f"Error: {e}")
+else:
+    st.info("Please enter your OpenAI API key to continue.")
